@@ -13,7 +13,7 @@ M.meta = {
   needs_setup = true,
 }
 
----@alias snacks.statuscolumn.Component "mark"|"sign"|"fold"|"git"
+---@alias snacks.statuscolumn.Component "mark"|"sign"|"fold"|"git"|"diag"
 ---@alias snacks.statuscolumn.Components snacks.statuscolumn.Component[]|fun(win:number,buf:number,lnum:number):snacks.statuscolumn.Component[]
 
 ---@class snacks.statuscolumn.Config
@@ -21,7 +21,7 @@ M.meta = {
 ---@field right snacks.statuscolumn.Components
 ---@field enabled? boolean
 local defaults = {
-  left = { "mark", "sign" }, -- priority of signs on the left (high to low)
+  left = { "mark", "diag", "sign" }, -- priority of signs on the left (high to low)
   right = { "fold", "git" }, -- priority of signs on the right (high to low)
   folds = {
     open = false, -- show open fold icons
@@ -37,7 +37,7 @@ local defaults = {
 local config = Snacks.config.get("statuscolumn", defaults)
 
 ---@private
----@alias snacks.statuscolumn.Sign.type "mark"|"sign"|"fold"|"git"
+---@alias snacks.statuscolumn.Sign.type "mark"|"sign"|"fold"|"git"|"diag"
 ---@alias snacks.statuscolumn.Sign {name:string, text:string, texthl:string, priority:number, type:snacks.statuscolumn.Sign.type}
 
 -- Cache for signs per buffer and line
@@ -66,12 +66,17 @@ end
 
 ---@private
 ---@param name string
-function M.is_git_sign(name)
+---@return "diag"|"git"|"sign"
+function M.get_sign_type(name)
+  if name:find("^DiagnosticSign") then
+    return "diag"
+  end
   for _, pattern in ipairs(config.git.patterns) do
     if name:find(pattern) then
-      return true
+      return "git"
     end
   end
+  return "sign"
 end
 
 -- Returns a list of regular and extmark signs sorted by priority (low to high)
@@ -90,7 +95,7 @@ function M.buf_signs(buf)
       local ret = vim.fn.sign_getdefined(sign.name)[1] --[[@as snacks.statuscolumn.Sign]]
       if ret then
         ret.priority = sign.priority
-        ret.type = M.is_git_sign(sign.name) and "git" or "sign"
+        ret.type = M.get_sign_type(sign.name)
         signs[sign.lnum] = signs[sign.lnum] or {}
         table.insert(signs[sign.lnum], ret)
       end
@@ -105,7 +110,7 @@ function M.buf_signs(buf)
     local name = extmark[4].sign_hl_group or extmark[4].sign_name or ""
     table.insert(signs[lnum], {
       name = name,
-      type = M.is_git_sign(name) and "git" or "sign",
+      type = M.get_sign_type(name),
       text = extmark[4].sign_text,
       texthl = extmark[4].sign_hl_group,
       priority = extmark[4].priority,
